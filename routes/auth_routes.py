@@ -55,8 +55,146 @@ def add_no_cache_headers(response):
     return response
 
 
+def process_sites(credentials):
+    try:
+        from selenium import webdriver
+        from selenium.webdriver.chrome.service import Service
+        from selenium.webdriver.chrome.options import Options
+        from concurrent.futures import ThreadPoolExecutor
+        import time
 
-def auto_login_multiple_sites(credentials, headless=False):
+        # List of URLs to open in different tabs
+        urls = [
+            "https://www.amazon.in/",
+            # "https://www.flipkart.com",
+            "https://accounts.google.com/signin",
+            "https://wns-etraveligroupoutsourcing.talentlms.com/index"
+        ]
+
+        # Setup ChromeDriver
+        chrome_options = Options()
+        chrome_options.headless = False  # Show browser
+        chrome_options.add_argument("--start-maximized")
+        service = Service()  # Automatically uses chromedriver from PATH
+
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+
+        # Open first URL in the main tab
+        driver.get(urls[0])
+
+        # Open empty tabs for remaining URLs
+        for _ in urls[1:]:
+            driver.execute_script("window.open('');")
+
+        # Get all tab handles
+        tabs = driver.window_handles
+
+        # Load URLs in their respective tabs
+        for i, url in enumerate(urls):
+            # breakpoint()
+            driver.switch_to.window(tabs[i])
+            driver.get(url)
+            print(f"Opened {url} in tab {i}")
+            time.sleep(3)
+            
+            wait = WebDriverWait(driver, 15)
+
+            try:
+                if "amazon" in url:
+                    # Step 2: Click on Sign In
+                    sign_in_button = wait.until(EC.element_to_be_clickable((By.ID, "nav-link-accountList")))
+                    sign_in_button.click()
+
+                    # Step 3: Enter email/phone
+                    email_input = wait.until(EC.presence_of_element_located((By.ID, "ap_email_login")))
+                    email_input.send_keys(credentials['Email'])
+
+                    continue_btn = wait.until(EC.element_to_be_clickable((By.ID, "continue")))
+                    continue_btn.click()
+
+                    # Step 4: Enter password
+                    password_input = wait.until(EC.presence_of_element_located((By.ID, "ap_password")))
+                    password_input.send_keys(credentials['Password'])
+
+                    sign_in_submit = wait.until(EC.element_to_be_clickable((By.ID, "signInSubmit")))
+                    sign_in_submit.click()
+
+                    # Step 5: Wait for login confirmation (e.g., user greeting or redirect)
+                    account_link = wait.until(EC.presence_of_element_located((By.ID, "nav-link-accountList")))
+                    print("✅ Logged in successfully.")
+
+                elif "accounts.google.com" in url or "mail.google.com" in url:
+                    # Step 2: Enter email
+                    email_input = wait.until(EC.presence_of_element_located((By.ID, "identifierId")))
+                    email_input.send_keys(credentials['Email'])
+
+                    next_btn = wait.until(EC.element_to_be_clickable((By.ID, "identifierNext")))
+                    next_btn.click()
+
+                    # Step 3: Enter password
+                    password_input = wait.until(EC.presence_of_element_located((By.NAME, "password")))
+                    password_input.send_keys(credentials['Password'])
+
+                    pass_next = wait.until(EC.element_to_be_clickable((By.ID, "passwordNext")))
+                    pass_next.click()
+
+                    # Step 4: Wait for Gmail inbox to load
+                    wait.until(EC.title_contains("Inbox"))
+                    print("✅ Logged in to Gmail successfully!")
+
+                elif "flipkart" in url:
+                    # Step 2: Wait for login popup (default opens on homepage)
+                    mobile_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@class='_2IX_2- VJZDxU']")))
+                    mobile_input.send_keys(MOBILE_NUMBER)
+
+                    password_input = driver.find_element(By.XPATH, "//input[@type='password']")
+                    password_input.send_keys(PASSWORD)
+
+                    # Step 3: Click login button
+                    login_button = driver.find_element(By.XPATH, "//button[@type='submit']")
+                    login_button.click()
+
+                    # Optional: Wait for login success indicator (like "My Account")
+                    wait.until(EC.presence_of_element_located((By.XPATH, "//div[text()='My Account' or text()='Account']")))
+
+                    print("✅ Login successful!")
+                
+                # breakpoint()
+
+                elif "wns-etraveligroupoutsourcing.talentlms.com" in url:
+                    # breakpoint()
+                    # Step 1: Enter email/phone
+                    email_input = wait.until(EC.presence_of_element_located((By.NAME, "login")))
+                    email_input.send_keys('u424221@wns.com')
+
+                    # Step 4: Enter password
+                    password_input = wait.until(EC.presence_of_element_located((By.NAME, "password")))
+                    password_input.send_keys('Sabre@963852741')
+
+                    sign_in_submit = wait.until(EC.element_to_be_clickable((By.NAME, "submit")))
+                    sign_in_submit.click()
+
+                    print("✅ Logged in successfully.")
+
+                else:
+                    print(f"⚠️ No automation logic for: {site}")
+
+
+            except Exception as e:
+                pass
+
+        # Optional: Keep the browser open for a while
+        time.sleep(100)
+
+        # Cleanup
+        driver.quit()
+
+
+    except Exception as e:
+        print("Error in Process Sites Function.")
+
+
+def auto_login_multiple_sites(site,credentials,headless=False):
     chrome_options = Options()
 
     if headless:
@@ -215,7 +353,7 @@ def user_login():
             session['user_logged_in']=True
             session['user_email']=emp_user.user_email
             flash("wfm User Login successful!", "success")
-            breakpoint()
+            # breakpoint()
             # ✅ Step 1: Get agent_name from DB using email
             trainer_emp = trainer_upload_employee_data.query.filter_by(email_address=email).first()
 
@@ -224,13 +362,25 @@ def user_login():
                 return redirect(url_for("auth.user_login"))
 
             agent_name = trainer_emp.agent_name
-            # ✅ Step 2: Read from either Excel or CSV
-            credentials_file_path = os.path.join("static", "Employee_Website_Credentials.xlsx")  # or .csv
-            credentials = read_emp_credentials_file(credentials_file_path, agent_name)
 
-            session['emp_credentials'] = credentials  # Store to use on dashboard
+            # ✅ Step 2: Read from either Excel or CSV
+            # credentials_file_path = os.path.join("static", "Employee_Website_Credentials.xlsx")  # or .csv
+            # credentials = read_emp_credentials_file(credentials_file_path, agent_name)
+
+            # session['emp_credentials'] = credentials  # Store to use on dashboard
             # Call with headless = False if you want to see browser
-            auto_login_multiple_sites(credentials, headless=False)
+            credentials = {}
+            credentials['Email'] = email
+            credentials['Password'] = password
+            session['emp_credentials'] = credentials
+            from multiprocessing import Process
+            # Define multiple tasks
+            
+            # p1= Process(target=process_sites, args=(credentials,))
+            # p1.start()
+
+            process_sites(credentials)
+
             return redirect(url_for("auth.emp_user_dashboard"))
         else:
             # ✅ If email doesn't exist in any table or password is incorrect
@@ -1699,7 +1849,7 @@ def wfm_dashboard():
     wfm_email = session.get('user_email')  # ✅ Fetch logged-in WFM user's email
 
     if request.method == 'POST':
-        # **1. Upload CSV/Excel File**
+        # ✅ 1. Upload CSV/Excel File
         file = request.files.get('file')
         if not file:
             flash("Please upload a file!", "danger")
@@ -1709,46 +1859,48 @@ def wfm_dashboard():
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         file.save(filepath)
 
-        # **2. Read File (CSV or Excel)**
         try:
+            # ✅ 2. Read File (CSV or Excel)
             df = pd.read_excel(filepath, engine='openpyxl') if filepath.endswith(('.xlsx', '.xls')) else pd.read_csv(filepath)
             df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')  # Normalize column names
 
-            # ✅ Extract date columns dynamically (like "24-Mar Mon")
-            date_columns = [col for col in df.columns if re.match(r'\d{1,2}-[A-Za-z]{3}', col)]
-            breakpoint()
             # ✅ Extract Year from filename or system date
             year_match = re.search(r'(\d{4})', filename)
             year = year_match.group(1) if year_match else str(datetime.now().year)
 
-            # ✅ Loop through each row and store data
+            # ✅ Extract date columns dynamically (like "24-Mar Mon")
+            date_columns = [col for col in df.columns if re.match(r'\d{1,2}-[A-Za-z]{3}', col)]
+
+            # ✅ 3. Loop through each row and store data
             for index, row in df.iterrows():
                 emp_id = row.get('emp', None)
                 name = row.get('name', None)
                 location = row.get('location', None)
                 supervisor = row.get('supervisor', None)
-                shift = row.get('shift', None)  # ✅ Store the general shift time
+                shift = row.get('shift', None)  # Row-wise general shift info
 
-                # ✅ Loop through date columns to store shifts dynamically
+                # ✅ Loop through date columns to store daily shifts
                 for col in date_columns:
-                    day, month_abbr = col.split('-')[:2]  # Extract "24" and "Mar"
-                    full_date = f"{day}-{month_abbr}-{year}"  # ✅ Correct format: "24-Mar-2025"
-                    shift_time = row.get(col, None)  # ✅ Get shift time for that date
+                    try:
+                        day, month_abbr = col.split('-')[:2]  # "24-Mar"
+                        full_date = f"{day}-{month_abbr}-{year}"  # "24-Mar-2025"
+                        shift_time = row.get(col, None)
 
-                    # ✅ **Store in Database**
-                    new_shift = ShiftSchedule(
-                        emp_id=emp_id,
-                        name=name,
-                        location=location,
-                        supervisor=supervisor,
-                        shift=shift,  # ✅ Store row-wise shift time
-                        date=full_date,  # ✅ Dynamic date
-                        shift_time=shift_time,  # ✅ Store actual shift timing
-                        wfm_user_uploaded_name=wfm_email
-                    )
-                    db.session.add(new_shift)
+                        new_shift = ShiftSchedule(
+                            emp_id=emp_id,
+                            name=name,
+                            location=location,
+                            supervisor=supervisor,
+                            shift=shift,
+                            date=full_date,
+                            shift_time=shift_time,
+                            wfm_user_uploaded_name=wfm_email
+                        )
+                        db.session.add(new_shift)
+                    except Exception as inner_e:
+                        flash(f"Error processing row {index + 1}, column {col}: {inner_e}", "warning")
 
-            db.session.commit()  # ✅ Save all data
+            db.session.commit()
             flash("Shift schedule uploaded successfully!", "success")
 
         except Exception as e:
