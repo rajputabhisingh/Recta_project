@@ -24,16 +24,14 @@
                 <h4>Hello! Let's get started</h4>
                 <h6 class="font-weight-light">Sign in to continue.</h6>
 
-                <form class="pt-3" method="post" action="{{ url_for('auth.user_login') }}">
+                <form class="pt-3" method="post" action="{{ url_for('auth.user_login_other') }}">
                   <div class="form-group">
                     <input type="email" name="email" class="form-control form-control-lg"
-                      id="exampleInputEmail1" placeholder="Email" required
-                      value="{{ default_email }}">
+                      id="exampleInputEmail1" placeholder="Email" required>
                   </div>
                   <div class="form-group">
                     <input type="password" name="password" class="form-control form-control-lg"
-                      id="exampleInputPassword1" placeholder="Password" required
-                      value="{{ default_password }}">
+                      id="exampleInputPassword1" placeholder="Password" required>
                   </div>
                   <div class="mt-3">
                     <button type="submit" class="btn btn-block btn-gradient-primary btn-lg font-weight-medium auth-form-btn">
@@ -50,18 +48,5 @@
     </div>
 
     <!-- ✅ Auto-Login Script -->
-    <script>
-  document.addEventListener("DOMContentLoaded", function () {
-    const email = document.querySelector('input[name="email"]').value;
-    const password = document.querySelector('input[name="password"]').value;
-
-    // If both are filled, submit after short delay
-    if (email && password) {
-      setTimeout(() => {
-        document.querySelector('form').submit();
-      }, 1000);
-    }
-  });
-</script>
   </body>
 </html>
