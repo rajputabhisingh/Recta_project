@@ -55,8 +55,146 @@ def add_no_cache_headers(response):
     return response
 
 
+def process_sites(credentials):
+    try:
+        from selenium import webdriver
+        from selenium.webdriver.chrome.service import Service
+        from selenium.webdriver.chrome.options import Options
+        from concurrent.futures import ThreadPoolExecutor
+        import time
 
-def auto_login_multiple_sites(credentials, headless=False):
+        # List of URLs to open in different tabs
+        urls = [
+            "https://www.amazon.in/",
+            # "https://www.flipkart.com",
+            "https://accounts.google.com/signin",
+            "https://wns-etraveligroupoutsourcing.talentlms.com/index"
+        ]
+
+        # Setup ChromeDriver
+        chrome_options = Options()
+        chrome_options.headless = False  # Show browser
+        chrome_options.add_argument("--start-maximized")
+        service = Service()  # Automatically uses chromedriver from PATH
+
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+
+        # Open first URL in the main tab
+        driver.get(urls[0])
+
+        # Open empty tabs for remaining URLs
+        for _ in urls[1:]:
+            driver.execute_script("window.open('');")
+
+        # Get all tab handles
+        tabs = driver.window_handles
+
+        # Load URLs in their respective tabs
+        for i, url in enumerate(urls):
+            # breakpoint()
+            driver.switch_to.window(tabs[i])
+            driver.get(url)
+            print(f"Opened {url} in tab {i}")
+            time.sleep(3)
+            
+            wait = WebDriverWait(driver, 15)
+
+            try:
+                if "amazon" in url:
+                    # Step 2: Click on Sign In
+                    sign_in_button = wait.until(EC.element_to_be_clickable((By.ID, "nav-link-accountList")))
+                    sign_in_button.click()
+
+                    # Step 3: Enter email/phone
+                    email_input = wait.until(EC.presence_of_element_located((By.ID, "ap_email_login")))
+                    email_input.send_keys(credentials['Email'])
+
+                    continue_btn = wait.until(EC.element_to_be_clickable((By.ID, "continue")))
+                    continue_btn.click()
+
+                    # Step 4: Enter password
+                    password_input = wait.until(EC.presence_of_element_located((By.ID, "ap_password")))
+                    password_input.send_keys(credentials['Password'])
+
+                    sign_in_submit = wait.until(EC.element_to_be_clickable((By.ID, "signInSubmit")))
+                    sign_in_submit.click()
+
+                    # Step 5: Wait for login confirmation (e.g., user greeting or redirect)
+                    account_link = wait.until(EC.presence_of_element_located((By.ID, "nav-link-accountList")))
+                    print("✅ Logged in successfully.")
+
+                elif "accounts.google.com" in url or "mail.google.com" in url:
+                    # Step 2: Enter email
+                    email_input = wait.until(EC.presence_of_element_located((By.ID, "identifierId")))
+                    email_input.send_keys(credentials['Email'])
+
+                    next_btn = wait.until(EC.element_to_be_clickable((By.ID, "identifierNext")))
+                    next_btn.click()
+
+                    # Step 3: Enter password
+                    password_input = wait.until(EC.presence_of_element_located((By.NAME, "password")))
+                    password_input.send_keys(credentials['Password'])
+
+                    pass_next = wait.until(EC.element_to_be_clickable((By.ID, "passwordNext")))
+                    pass_next.click()
+
+                    # Step 4: Wait for Gmail inbox to load
+                    wait.until(EC.title_contains("Inbox"))
+                    print("✅ Logged in to Gmail successfully!")
+
+                elif "flipkart" in url:
+                    # Step 2: Wait for login popup (default opens on homepage)
+                    mobile_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@class='_2IX_2- VJZDxU']")))
+                    mobile_input.send_keys(MOBILE_NUMBER)
+
+                    password_input = driver.find_element(By.XPATH, "//input[@type='password']")
+                    password_input.send_keys(PASSWORD)
+
+                    # Step 3: Click login button
+                    login_button = driver.find_element(By.XPATH, "//button[@type='submit']")
+                    login_button.click()
+
+                    # Optional: Wait for login success indicator (like "My Account")
+                    wait.until(EC.presence_of_element_located((By.XPATH, "//div[text()='My Account' or text()='Account']")))
+
+                    print("✅ Login successful!")
+                
+                # breakpoint()
+
+                elif "wns-etraveligroupoutsourcing.talentlms.com" in url:
+                    # breakpoint()
+                    # Step 1: Enter email/phone
+                    email_input = wait.until(EC.presence_of_element_located((By.NAME, "login")))
+                    email_input.send_keys('u424221@wns.com')
+
+                    # Step 4: Enter password
+                    password_input = wait.until(EC.presence_of_element_located((By.NAME, "password")))
+                    password_input.send_keys('Sabre@963852741')
+
+                    sign_in_submit = wait.until(EC.element_to_be_clickable((By.NAME, "submit")))
+                    sign_in_submit.click()
+
+                    print("✅ Logged in successfully.")
+
+                else:
+                    print(f"⚠️ No automation logic for: {site}")
+
+
+            except Exception as e:
+                pass
+
+        # Optional: Keep the browser open for a while
+        time.sleep(100)
+
+        # Cleanup
+        driver.quit()
+
+
+    except Exception as e:
+        print("Error in Process Sites Function.")
+
+
+def auto_login_multiple_sites(site,credentials,headless=False):
     chrome_options = Options()
 
     if headless:
@@ -165,79 +303,180 @@ def read_emp_credentials_file(file_path, agent_name):
         return []
 
 
+# @auth.route("/user_login", methods=['GET', 'POST'])
+# def user_login():
+#     get_flashed_messages()  # ✅ Clears previous flash messages
+
+#     if request.method == 'POST':
+#         email = request.form.get('email')
+#         password = request.form.get('password')
+
+#         # ✅ Check if email exists in User table (HR Employee)
+#         user_hr = User.query.filter_by(user_email=email, user_process="hr_process").first()
+#         # ✅ Check if email exists in User table and belongs to trainer
+#         trainer = User.query.filter_by(user_email=email, user_process="trainer_process").first()
+#         # ✅ Check if email exists in User table and belongs to operation user
+#         operation_user = User.query.filter_by(user_email=email, user_process="operation_process").first()
+
+#         wfm_user =User.query.filter_by(user_email=email, user_process="wfm_process").first()
+
+#         emp_user =User.query.filter_by(user_email=email, user_process="emp_user").first()
+
+#         # ✅ HR Process Login
+#         if user_hr and user_hr.user_password == password:
+#             session['user_logged_in'] = True  
+#             session['user_email'] = user_hr.user_email  
+#             flash("HR User Login successful!", "success")
+#             return redirect(url_for("auth.user_dashboard"))
+
+#         # ✅ Trainer Process Login
+#         elif trainer and trainer.user_password == password:
+#             session['user_logged_in'] = True  
+#             session['user_email'] = trainer.user_email  
+#             flash("Trainer Login successful!", "success")
+#             return redirect(url_for("auth.trainer_dashboard"))
+
+#         # ✅ Operation Process Login (Uses Hashed Password)
+#         elif operation_user and check_password_hash(operation_user.user_password, password):
+#             session['user_logged_in'] = True  
+#             session['user_email'] = operation_user.user_email  
+#             flash("Operation User Login successful!", "success")
+#             return redirect(url_for("auth.operation_dashboard"))
+
+#         elif wfm_user and check_password_hash(wfm_user.user_password,password):
+#             session['user_logged_in']=True
+#             session['user_email']=wfm_user.user_email
+#             flash("wfm User Login successful!", "success")
+#             return redirect(url_for("auth.wfm_dashboard"))
+
+#         elif emp_user and emp_user.user_password==password:
+#             session['user_logged_in']=True
+#             session['user_email']=emp_user.user_email
+#             flash("wfm User Login successful!", "success")
+#             # breakpoint()
+#             # ✅ Step 1: Get agent_name from DB using email
+#             trainer_emp = trainer_upload_employee_data.query.filter_by(email_address=email).first()
+
+#             if not trainer_emp:
+#                 flash("Trainer mapping not found for this email!", "danger")
+#                 return redirect(url_for("auth.user_login"))
+
+#             agent_name = trainer_emp.agent_name
+
+#             # ✅ Step 2: Read from either Excel or CSV
+#             # credentials_file_path = os.path.join("static", "Employee_Website_Credentials.xlsx")  # or .csv
+#             # credentials = read_emp_credentials_file(credentials_file_path, agent_name)
+
+#             # session['emp_credentials'] = credentials  # Store to use on dashboard
+#             # Call with headless = False if you want to see browser
+#             breakpoint()
+#             credentials = {}
+#             credentials['Email'] = email
+#             credentials['Password'] = password
+#             session['emp_credentials'] = credentials
+#             from multiprocessing import Process
+#             # Define multiple tasks
+            
+#             # p1= Process(target=process_sites, args=(credentials,))
+#             # p1.start()
+
+#             process_sites(credentials)
+
+#             return redirect(url_for("auth.emp_user_dashboard"))
+#         else:
+#             # ✅ If email doesn't exist in any table or password is incorrect
+#             flash("Invalid email or password. Please try again.", "danger")
+#             return redirect(url_for('auth.user_login'))  
+
+#     return render_template('user_login.html')
+
 @auth.route("/user_login", methods=['GET', 'POST'])
 def user_login():
-    get_flashed_messages()  # ✅ Clears previous flash messages
-
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
 
-        # ✅ Check if email exists in User table (HR Employee)
-        user_hr = User.query.filter_by(user_email=email, user_process="hr_process").first()
-        # ✅ Check if email exists in User table and belongs to trainer
-        trainer = User.query.filter_by(user_email=email, user_process="trainer_process").first()
-        # ✅ Check if email exists in User table and belongs to operation user
-        operation_user = User.query.filter_by(user_email=email, user_process="operation_process").first()
+        emp_user = User.query.filter_by(user_email=email, user_process="emp_user").first()
 
-        wfm_user =User.query.filter_by(user_email=email, user_process="wfm_process").first()
+        if emp_user and emp_user.user_password == password:
+            session['user_logged_in'] = True
+            session['user_email'] = emp_user.user_email
+            flash("Employee User Login successful!", "success")
 
-        emp_user =User.query.filter_by(user_email=email, user_process="emp_user").first()
-
-        # ✅ HR Process Login
-        if user_hr and user_hr.user_password == password:
-            session['user_logged_in'] = True  
-            session['user_email'] = user_hr.user_email  
-            flash("HR User Login successful!", "success")
-            return redirect(url_for("auth.user_dashboard"))
-
-        # ✅ Trainer Process Login
-        elif trainer and trainer.user_password == password:
-            session['user_logged_in'] = True  
-            session['user_email'] = trainer.user_email  
-            flash("Trainer Login successful!", "success")
-            return redirect(url_for("auth.trainer_dashboard"))
-
-        # ✅ Operation Process Login (Uses Hashed Password)
-        elif operation_user and check_password_hash(operation_user.user_password, password):
-            session['user_logged_in'] = True  
-            session['user_email'] = operation_user.user_email  
-            flash("Operation User Login successful!", "success")
-            return redirect(url_for("auth.operation_dashboard"))
-
-        elif wfm_user and check_password_hash(wfm_user.user_password,password):
-            session['user_logged_in']=True
-            session['user_email']=wfm_user.user_email
-            flash("wfm User Login successful!", "success")
-            return redirect(url_for("auth.wfm_dashboard"))
-
-        elif emp_user and emp_user.user_password==password:
-            session['user_logged_in']=True
-            session['user_email']=emp_user.user_email
-            flash("wfm User Login successful!", "success")
-            breakpoint()
-            # ✅ Step 1: Get agent_name from DB using email
             trainer_emp = trainer_upload_employee_data.query.filter_by(email_address=email).first()
-
             if not trainer_emp:
                 flash("Trainer mapping not found for this email!", "danger")
                 return redirect(url_for("auth.user_login"))
 
-            agent_name = trainer_emp.agent_name
-            # ✅ Step 2: Read from either Excel or CSV
-            credentials_file_path = os.path.join("static", "Employee_Website_Credentials.xlsx")  # or .csv
-            credentials = read_emp_credentials_file(credentials_file_path, agent_name)
+            credentials = {'Email': email, 'Password': password}
+            session['emp_credentials'] = credentials
 
-            session['emp_credentials'] = credentials  # Store to use on dashboard
-            # Call with headless = False if you want to see browser
-            auto_login_multiple_sites(credentials, headless=False)
+            # ✅ Run automation synchronously (waits for it to finish)
+            process_sites(credentials)
+
+            # ✅ Redirect only after automation finishes
             return redirect(url_for("auth.emp_user_dashboard"))
-        else:
-            # ✅ If email doesn't exist in any table or password is incorrect
-            flash("Invalid email or password. Please try again.", "danger")
-            return redirect(url_for('auth.user_login'))  
 
-    return render_template('user_login.html')
+        else:
+            flash("Invalid email or password. Please try again.", "danger")
+            return redirect(url_for('auth.user_login'))
+
+    # ✅ GET: Auto-fetch default emp_user credentials
+    emp_user = User.query.filter_by(user_process="emp_user").first()
+    default_email = emp_user.user_email if emp_user else ""
+    default_password = emp_user.user_password if emp_user else ""
+
+    return render_template(
+        'user_login.html',
+        default_email=default_email,
+        default_password=default_password
+    )
+
+
+@auth.route("/user_login_other", methods=['GET', 'POST'])
+def user_login_other():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+
+        user_hr = User.query.filter_by(user_email=email, user_process="hr_process").first()
+        trainer = User.query.filter_by(user_email=email, user_process="trainer_process").first()
+        operation_user = User.query.filter_by(user_email=email, user_process="operation_process").first()
+        wfm_user = User.query.filter_by(user_email=email, user_process="wfm_process").first()
+
+        # HR Login
+        if user_hr and user_hr.user_password == password:
+            session['user_logged_in'] = True
+            session['user_email'] = user_hr.user_email
+            flash("HR User Login successful!", "success")
+            return redirect(url_for("auth.user_dashboard"))
+
+        # Trainer Login
+        elif trainer and trainer.user_password == password:
+            session['user_logged_in'] = True
+            session['user_email'] = trainer.user_email
+            flash("Trainer Login successful!", "success")
+            return redirect(url_for("auth.trainer_dashboard"))
+
+        # Operation User Login
+        elif operation_user and check_password_hash(operation_user.user_password, password):
+            session['user_logged_in'] = True
+            session['user_email'] = operation_user.user_email
+            flash("Operation User Login successful!", "success")
+            return redirect(url_for("auth.operation_dashboard"))
+
+        # WFM Login
+        elif wfm_user and check_password_hash(wfm_user.user_password, password):
+            session['user_logged_in'] = True
+            session['user_email'] = wfm_user.user_email
+            flash("WFM User Login successful!", "success")
+            return redirect(url_for("auth.wfm_dashboard"))
+
+        else:
+            flash("Invalid email or password. Please try again.", "danger")
+            return redirect(url_for('auth.user_login_other'))
+
+    return render_template("user_login_other.html")
 
 
 # ✅ Function to Automate Amazon Login or Sign Up
@@ -308,10 +547,17 @@ def emp_user_dashboard():
 def user_logout():
     session.clear()
     session.pop('user_logged_in', None)  # ✅ Destroy session
+    session.pop('_flashes', None)        # ✅ Flash messages ko clear karo
+    flash("You have been logged out.", "info")  # ✅ Logout ka message set karo
+    return redirect(url_for('home'))     # ✅ Redirect to home page (index.html)
+
+@auth.route("/other_user_logout")
+def other_user_logout():
+    session.clear()
+    session.pop('user_logged_in', None)  # ✅ Destroy session
     session.pop('_flashes', None)  # ✅ Flash messages ko clear karo
     flash("You have been logged out.", "info")  # ✅ Logout ka message set karo
     return redirect(url_for('auth.user_login'))  # ✅ Redirect to login page
-
 
 @auth.route("/user_dashboard")
 def user_dashboard():
@@ -1699,7 +1945,7 @@ def wfm_dashboard():
     wfm_email = session.get('user_email')  # ✅ Fetch logged-in WFM user's email
 
     if request.method == 'POST':
-        # **1. Upload CSV/Excel File**
+        # ✅ 1. Upload CSV/Excel File
         file = request.files.get('file')
         if not file:
             flash("Please upload a file!", "danger")
@@ -1709,46 +1955,48 @@ def wfm_dashboard():
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         file.save(filepath)
 
-        # **2. Read File (CSV or Excel)**
         try:
+            # ✅ 2. Read File (CSV or Excel)
             df = pd.read_excel(filepath, engine='openpyxl') if filepath.endswith(('.xlsx', '.xls')) else pd.read_csv(filepath)
             df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')  # Normalize column names
 
-            # ✅ Extract date columns dynamically (like "24-Mar Mon")
-            date_columns = [col for col in df.columns if re.match(r'\d{1,2}-[A-Za-z]{3}', col)]
-            breakpoint()
             # ✅ Extract Year from filename or system date
             year_match = re.search(r'(\d{4})', filename)
             year = year_match.group(1) if year_match else str(datetime.now().year)
 
-            # ✅ Loop through each row and store data
+            # ✅ Extract date columns dynamically (like "24-Mar Mon")
+            date_columns = [col for col in df.columns if re.match(r'\d{1,2}-[A-Za-z]{3}', col)]
+
+            # ✅ 3. Loop through each row and store data
             for index, row in df.iterrows():
                 emp_id = row.get('emp', None)
                 name = row.get('name', None)
                 location = row.get('location', None)
                 supervisor = row.get('supervisor', None)
-                shift = row.get('shift', None)  # ✅ Store the general shift time
+                shift = row.get('shift', None)  # Row-wise general shift info
 
-                # ✅ Loop through date columns to store shifts dynamically
+                # ✅ Loop through date columns to store daily shifts
                 for col in date_columns:
-                    day, month_abbr = col.split('-')[:2]  # Extract "24" and "Mar"
-                    full_date = f"{day}-{month_abbr}-{year}"  # ✅ Correct format: "24-Mar-2025"
-                    shift_time = row.get(col, None)  # ✅ Get shift time for that date
+                    try:
+                        day, month_abbr = col.split('-')[:2]  # "24-Mar"
+                        full_date = f"{day}-{month_abbr}-{year}"  # "24-Mar-2025"
+                        shift_time = row.get(col, None)
 
-                    # ✅ **Store in Database**
-                    new_shift = ShiftSchedule(
-                        emp_id=emp_id,
-                        name=name,
-                        location=location,
-                        supervisor=supervisor,
-                        shift=shift,  # ✅ Store row-wise shift time
-                        date=full_date,  # ✅ Dynamic date
-                        shift_time=shift_time,  # ✅ Store actual shift timing
-                        wfm_user_uploaded_name=wfm_email
-                    )
-                    db.session.add(new_shift)
+                        new_shift = ShiftSchedule(
+                            emp_id=emp_id,
+                            name=name,
+                            location=location,
+                            supervisor=supervisor,
+                            shift=shift,
+                            date=full_date,
+                            shift_time=shift_time,
+                            wfm_user_uploaded_name=wfm_email
+                        )
+                        db.session.add(new_shift)
+                    except Exception as inner_e:
+                        flash(f"Error processing row {index + 1}, column {col}: {inner_e}", "warning")
 
-            db.session.commit()  # ✅ Save all data
+            db.session.commit()
             flash("Shift schedule uploaded successfully!", "success")
 
         except Exception as e:
